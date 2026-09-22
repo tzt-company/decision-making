@@ -60,57 +60,56 @@ function isRiskScore(qid) {
 }
 
 /**
- * 风险概率 → 拦截/放行；置信度 → 自动执行/转人工。
- * 两者是两件事，不能都写成「可放行」。
+ * 风险概率 → 拦截/放行；置信度 → 机器定/人工定。
+ * 一句话给出动作，避免「拦截」和「自动执行」互相打架。
  */
 function gateLabel(qid, ans, gate) {
   const conf = ans.confidence ?? 0;
   const auto = conf >= gate;
-  const confText = auto
-    ? `置信 ${conf.toFixed(3)} ≥ ${gate.toFixed(2)}，可自动执行`
-    : `置信 ${conf.toFixed(3)} &lt; ${gate.toFixed(2)}，需人工确认`;
+  const confNote = auto
+    ? `置信 ${conf.toFixed(3)}，免人工`
+    : `置信 ${conf.toFixed(3)} 不足，需人工确认`;
 
   if (ans.type === "noul" && isRiskNoul(qid)) {
     const p = ans.noul ?? 0;
     const risky = p >= 0.5;
     if (risky && auto) {
-      return `<span class="human">自动拦截</span> · 风险高（P=${p.toFixed(3)}）· ${confText}`;
+      return `<span class="human">动作：拦截</span> · 风险高 P=${p.toFixed(3)} · ${confNote}`;
     }
     if (risky && !auto) {
-      return `<span class="human">建议拦截</span> · 风险高（P=${p.toFixed(3)}）但把握不足 · ${confText}`;
+      return `<span class="human">动作：待人工拦截</span> · 风险高 P=${p.toFixed(3)} · ${confNote}`;
     }
     if (!risky && auto) {
-      return `<span class="auto">自动放行</span> · 风险低（P=${p.toFixed(3)}）· ${confText}`;
+      return `<span class="auto">动作：放行</span> · 风险低 P=${p.toFixed(3)} · ${confNote}`;
     }
-    return `<span class="human">转人工复核</span> · 看起来风险低但把握不足 · ${confText}`;
+    return `<span class="human">动作：待人工放行</span> · 风险低 P=${p.toFixed(3)} · ${confNote}`;
   }
 
   if (ans.type === "score" && isRiskScore(qid)) {
     const s = ans.score ?? 0;
     const risky = s >= 1.5;
     if (risky && auto) {
-      return `<span class="human">自动拦截/升级</span> · 危害等级 ${s.toFixed(2)} · ${confText}`;
+      return `<span class="human">动作：拦截</span> · 危害等级 ${s.toFixed(2)} · ${confNote}`;
     }
     if (risky && !auto) {
-      return `<span class="human">建议拦截</span> · 危害等级 ${s.toFixed(2)} · ${confText}`;
+      return `<span class="human">动作：待人工拦截</span> · 危害等级 ${s.toFixed(2)} · ${confNote}`;
     }
     if (!risky && auto) {
-      return `<span class="auto">自动放行</span> · 危害等级 ${s.toFixed(2)} · ${confText}`;
+      return `<span class="auto">动作：放行</span> · 危害等级 ${s.toFixed(2)} · ${confNote}`;
     }
-    return `<span class="human">转人工复核</span> · 危害等级 ${s.toFixed(2)} · ${confText}`;
+    return `<span class="human">动作：待人工放行</span> · 危害等级 ${s.toFixed(2)} · ${confNote}`;
   }
 
   if (ans.type === "choice") {
     const label = optLabel(qid, ans.choice || "");
     return auto
-      ? `<span class="auto">自动处理</span> · 按「${label}」执行 · ${confText}`
-      : `<span class="human">转人工</span> · 拟判「${label}」但把握不足 · ${confText}`;
+      ? `<span class="auto">动作：按「${label}」处理</span> · ${confNote}`
+      : `<span class="human">动作：人工定标（拟「${label}」）</span> · ${confNote}`;
   }
 
-  // 普通 noul / score（紧急度、情绪等）
   return auto
-    ? `<span class="auto">自动处理</span> · ${confText}`
-    : `<span class="human">转人工</span> · ${confText}`;
+    ? `<span class="auto">动作：按结论处理</span> · ${confNote}`
+    : `<span class="human">动作：人工复核</span> · ${confNote}`;
 }
 
 function barFillClass(p, isTop) {
