@@ -16,16 +16,16 @@
         <div class="brand-mark">S1</div>
         <h1>Laya 决策台</h1>
       </div>
-      <p class="brand-sub">多语言 · 非自回归 · 真模型 CPU</p>
+      <p class="brand-sub">多语言 · 非自回归 · 本机真模型（CPU）</p>
 
       <p class="nav-label">场景</p>
       <div class="scenario-list" id="scenarioList"></div>
 
       <div class="meta-card">
-        <div class="meta-row"><span>推理</span><span>laya Router</span></div>
-        <div class="meta-row"><span>设备</span><span>CPU</span></div>
-        <div class="meta-row"><span>原语</span><span>choice / score / noul</span></div>
-        <div class="meta-row"><span>门控阈值</span><span id="railGate">0.85</span></div>
+        <div class="meta-row"><span>推理引擎</span><span>Laya 路由器</span></div>
+        <div class="meta-row"><span>运行设备</span><span>CPU</span></div>
+        <div class="meta-row"><span>输出形式</span><span>选择 / 打分 / 是非</span></div>
+        <div class="meta-row"><span>自动放行阈值</span><span id="railGate">0.85</span></div>
       </div>
     </aside>
 
@@ -43,39 +43,39 @@
 
       <section class="panel">
         <div class="panel-head">
-          <div class="panel-title">状态输入 · State</div>
+          <div class="panel-title">要判断的文本</div>
           <div class="panel-title" id="stateKey"></div>
         </div>
         <div class="samples" id="sampleList"></div>
-        <textarea id="stateText" placeholder="输入要判断的文本状态…"></textarea>
+        <textarea id="stateText" placeholder="粘贴或输入要判断的文本…"></textarea>
         <div class="controls">
           <div class="field">
-            <label for="modelSelect">Checkpoint（可选覆盖）</label>
+            <label for="modelSelect">模型（一般不用改）</label>
             <select id="modelSelect">
-              <option value="">自动路由（推荐）</option>
-              <option value="english">english · ModernBERT</option>
-              <option value="multilingual">multilingual · mmBERT</option>
-              <option value="typed-decisions">typed-decisions</option>
+              <option value="">自动选模型（推荐）</option>
+              <option value="english">英文模型</option>
+              <option value="multilingual">多语言模型</option>
+              <option value="typed-decisions">专用决策模型</option>
             </select>
           </div>
           <div class="field">
-            <label>置信度门控阈值</label>
+            <label>自动放行阈值（置信度）</label>
             <div class="range-wrap">
               <input type="range" id="gateRange" min="0.5" max="0.95" step="0.01" value="0.85" />
               <span class="range-val" id="gateVal">0.85</span>
             </div>
           </div>
           <div class="btn-row">
-            <button class="btn btn-ghost" id="btnRoute" type="button">仅看路由</button>
+            <button class="btn btn-ghost" id="btnRoute" type="button">只看选模型</button>
             <button class="btn btn-ghost" id="btnBatch" type="button">跑全部样例</button>
-            <button class="btn btn-primary" id="btnRun" type="button">单次前向 · 判定</button>
+            <button class="btn btn-primary" id="btnRun" type="button">开始判定</button>
           </div>
         </div>
       </section>
 
       <section class="panel">
         <div class="panel-head">
-          <div class="panel-title">类型化问题 · 一次前向</div>
+          <div class="panel-title">要回答的问题（一次全部答完）</div>
           <div class="panel-title" id="qCount"></div>
         </div>
         <div class="q-grid" id="questionList"></div>
@@ -83,17 +83,17 @@
 
       <section class="panel" id="resultPanel">
         <div class="panel-head">
-          <div class="panel-title">结构化结果 · Probabilities</div>
+          <div class="panel-title">判定结果</div>
           <div class="panel-title" id="resultMeta">等待判定</div>
         </div>
         <div id="resultBody">
-          <div class="empty">选择样例或输入文本，点击「单次前向 · 判定」。所有概率来自本机 Laya 真模型，无演示假数据。</div>
+          <div class="empty">点上方样例或自己输入文本，再点「开始判定」。<br />概率全部来自本机 Laya 真模型，不是演示假数据。</div>
         </div>
       </section>
     </main>
   </div>
 
-  <div class="flash" id="flash" hidden><span>ONE FORWARD PASS</span></div>
+  <div class="flash" id="flash" hidden><span>一次前向 · 全部出结果</span></div>
   <script src="/static/app.js"></script>
 </body>
 </html>
