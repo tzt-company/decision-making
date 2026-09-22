@@ -27,7 +27,7 @@ pip install -r requirements.txt
 python -m app.server
 ```
 
-首次启动会从 Hugging Face 下载权重（英文 + 多语言 checkpoint，约 1.5 GB），CPU 预加载约 1–3 分钟、内存约 2–3 GB。单次推理在笔记本 CPU 上约 1.5–3 s（预热后）；官方 T4 预加载标称约 33–464 ms。
+首次启动会下载权重到**项目内** `models/hub/`（英文 + 多语言，约 1.5 GB），CPU 预加载约 1–3 分钟。单次推理在笔记本 CPU 上约 1.5–3 s（预热后）。
 
 ## 技术
 
@@ -42,6 +42,8 @@ app/
   scenarios.py   # 4 场景样例 + 类型化问题（官方 presets）
   engine.py      # 真 Router 封装（CPU）
   server.py      # HTTP API + 静态资源
+models/
+  hub/           # Laya 权重缓存（项目内本地文件，不进 git）
 static/
   index.html
   styles.css

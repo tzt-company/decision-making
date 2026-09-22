@@ -15,10 +15,15 @@ from pydantic import BaseModel, Field
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
+# 权重在项目 models/hub，而不是 C 盘用户缓存
+_ROOT = Path(__file__).resolve().parent.parent
+os.environ.setdefault("HF_HUB_CACHE", str(_ROOT / "models" / "hub"))
+os.environ.setdefault("HF_HOME", str(_ROOT / "models"))
+
 from app.engine import engine  # noqa: E402
 from app.scenarios import get_scenario, list_scenarios  # noqa: E402
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = _ROOT
 STATIC = ROOT / "static"
 
 app = FastAPI(title="Laya System 1 Decision Playground", version="0.1.0")

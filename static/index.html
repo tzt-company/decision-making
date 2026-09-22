@@ -25,7 +25,7 @@
         <div class="meta-row"><span>推理引擎</span><span>Laya 路由器</span></div>
         <div class="meta-row"><span>运行设备</span><span>CPU</span></div>
         <div class="meta-row"><span>输出形式</span><span>选择 / 打分 / 是非</span></div>
-        <div class="meta-row"><span>自动放行阈值</span><span id="railGate">0.85</span></div>
+        <div class="meta-row"><span>自动决策阈值</span><span id="railGate">0.85</span></div>
       </div>
     </aside>
 
@@ -58,7 +58,7 @@
             </select>
           </div>
           <div class="field">
-            <label>自动放行阈值（置信度）</label>
+            <label>自动决策阈值（置信度）</label>
             <div class="range-wrap">
               <input type="range" id="gateRange" min="0.5" max="0.95" step="0.01" value="0.85" />
               <span class="range-val" id="gateVal">0.85</span>
@@ -82,7 +82,7 @@
 
       <section class="panel" id="resultPanel">
         <div class="panel-head">
-          <div class="panel-title">判定结果</div>
+          <div class="panel-title">判定结果 · 风险概率定拦/放，置信度定自动/人工</div>
           <div class="panel-title" id="resultMeta">等待判定</div>
         </div>
         <div id="resultBody">

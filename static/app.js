@@ -42,10 +42,75 @@ function pct(x) {
   return `${(x * 100).toFixed(1)}%`;
 }
 
-function gateLabel(conf, gate) {
-  return conf >= gate
-    ? `<span class="auto">自动处理</span> · 置信度 ${conf.toFixed(3)} ≥ ${gate.toFixed(2)}，可放行`
-    : `<span class="human">转人工</span> · 置信度 ${conf.toFixed(3)} &lt; ${gate.toFixed(2)}，不够稳`;
+function isRiskNoul(qid) {
+  return [
+    "jailbreak",
+    "prompt_injection",
+    "sensitive_data",
+    "toxic",
+    "harassment",
+    "threat",
+    "spam",
+    "churn_risk",
+  ].includes(qid);
+}
+
+function isRiskScore(qid) {
+  return ["harm_severity", "severity"].includes(qid);
+}
+
+/**
+ * 风险概率 → 拦截/放行；置信度 → 自动执行/转人工。
+ * 两者是两件事，不能都写成「可放行」。
+ */
+function gateLabel(qid, ans, gate) {
+  const conf = ans.confidence ?? 0;
+  const auto = conf >= gate;
+  const confText = auto
+    ? `置信 ${conf.toFixed(3)} ≥ ${gate.toFixed(2)}，可自动执行`
+    : `置信 ${conf.toFixed(3)} &lt; ${gate.toFixed(2)}，需人工确认`;
+
+  if (ans.type === "noul" && isRiskNoul(qid)) {
+    const p = ans.noul ?? 0;
+    const risky = p >= 0.5;
+    if (risky && auto) {
+      return `<span class="human">自动拦截</span> · 风险高（P=${p.toFixed(3)}）· ${confText}`;
+    }
+    if (risky && !auto) {
+      return `<span class="human">建议拦截</span> · 风险高（P=${p.toFixed(3)}）但把握不足 · ${confText}`;
+    }
+    if (!risky && auto) {
+      return `<span class="auto">自动放行</span> · 风险低（P=${p.toFixed(3)}）· ${confText}`;
+    }
+    return `<span class="human">转人工复核</span> · 看起来风险低但把握不足 · ${confText}`;
+  }
+
+  if (ans.type === "score" && isRiskScore(qid)) {
+    const s = ans.score ?? 0;
+    const risky = s >= 1.5;
+    if (risky && auto) {
+      return `<span class="human">自动拦截/升级</span> · 危害等级 ${s.toFixed(2)} · ${confText}`;
+    }
+    if (risky && !auto) {
+      return `<span class="human">建议拦截</span> · 危害等级 ${s.toFixed(2)} · ${confText}`;
+    }
+    if (!risky && auto) {
+      return `<span class="auto">自动放行</span> · 危害等级 ${s.toFixed(2)} · ${confText}`;
+    }
+    return `<span class="human">转人工复核</span> · 危害等级 ${s.toFixed(2)} · ${confText}`;
+  }
+
+  if (ans.type === "choice") {
+    const label = optLabel(qid, ans.choice || "");
+    return auto
+      ? `<span class="auto">自动处理</span> · 按「${label}」执行 · ${confText}`
+      : `<span class="human">转人工</span> · 拟判「${label}」但把握不足 · ${confText}`;
+  }
+
+  // 普通 noul / score（紧急度、情绪等）
+  return auto
+    ? `<span class="auto">自动处理</span> · ${confText}`
+    : `<span class="human">转人工</span> · ${confText}`;
 }
 
 function barFillClass(p, isTop) {
@@ -98,7 +163,7 @@ function renderChoice(qid, ans, gate) {
     </header>
     <div class="pred">${optLabel(qid, top)}</div>
     <div class="bars">${bars}</div>
-    <div class="gate">${gateLabel(ans.confidence ?? 0, gate)}</div>
+    <div class="gate">${gateLabel(qid, ans, gate)}</div>
   `;
 }
 
@@ -123,7 +188,7 @@ function renderScore(qid, ans, gate) {
     </header>
     <div class="pred"><span class="num">${(ans.score ?? 0).toFixed(2)}</span> <span style="font-size:13px;color:var(--muted)">期望等级</span></div>
     <div class="bars">${bars}</div>
-    <div class="gate">${gateLabel(ans.confidence ?? 0, gate)}</div>
+    <div class="gate">${gateLabel(qid, ans, gate)}</div>
   `;
 }
 
@@ -143,7 +208,7 @@ function renderNoul(qid, ans, gate) {
       <div class="noul-needle" style="left:calc(${needle}% - 1.5px)"></div>
     </div>
     <div class="noul-ends"><span>否 0.0</span><span>是 1.0</span></div>
-    <div class="gate">${gateLabel(ans.confidence ?? 0, gate)}</div>
+    <div class="gate">${gateLabel(qid, ans, gate)}</div>
   `;
 }
 

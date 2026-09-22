@@ -11,9 +11,15 @@ import time
 from pathlib import Path
 from typing import Any
 
-from laya import Router
+# 权重放在项目内 models/hub，不占 C 盘用户缓存
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_PROJECT_HUB = _PROJECT_ROOT / "models" / "hub"
+os.environ.setdefault("HF_HUB_CACHE", str(_PROJECT_HUB))
+os.environ.setdefault("HF_HOME", str(_PROJECT_ROOT / "models"))
 
-HF_CACHE = Path.home() / ".cache" / "huggingface" / "hub" / "models--convaiinnovations--laya"
+from laya import Router  # noqa: E402
+
+HF_CACHE = _PROJECT_HUB / "models--convaiinnovations--laya"
 
 
 class LayaEngine:
