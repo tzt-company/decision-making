@@ -340,17 +340,29 @@ function selectScenario(id) {
   $("resultMeta").textContent = "等待判定";
 }
 
-async function api(path, body) {
-  const res = await fetch(path, {
-    method: body ? "POST" : "GET",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.detail || res.statusText || "请求失败");
+async function api(path, body, timeoutMs = 90000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(path, {
+      method: body ? "POST" : "GET",
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: ctrl.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.detail || res.statusText || "请求失败");
+    }
+    return data;
+  } catch (e) {
+    if (e.name === "AbortError") {
+      throw new Error(`等待超时（${Math.round(timeoutMs / 1000)} 秒）。CPU 推理较慢或服务卡住，请稍后再试。`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  return data;
 }
 
 async function warmup() {
@@ -371,6 +383,10 @@ async function runPredict() {
     return;
   }
   $("btnRun").disabled = true;
+  const t0 = Date.now();
+  const tick = setInterval(() => {
+    setStatus("busy", `推理中… 已等待 ${Math.round((Date.now() - t0) / 1000)} 秒`);
+  }, 1000);
   setStatus("busy", "一次前向推理中…");
   flash();
   try {
@@ -379,13 +395,14 @@ async function runPredict() {
       text,
       model: $("modelSelect").value || null,
     };
-    const res = await api("/api/predict", body);
+    const res = await api("/api/predict", body, 90000);
     renderSingleResult(res);
     setStatus("ok", `完成 · ${res.latency_ms} 毫秒 · ${MODEL_LABEL[res.routing?.model] || res.routing?.model || ""}`);
   } catch (e) {
     $("resultBody").innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
     setStatus("err", "推理失败");
   } finally {
+    clearInterval(tick);
     $("btnRun").disabled = false;
   }
 }
@@ -393,7 +410,10 @@ async function runPredict() {
 async function runBatch() {
   if (!state.current) return;
   $("btnBatch").disabled = true;
-  setStatus("busy", "批量跑样例中…");
+  const t0 = Date.now();
+  const tick = setInterval(() => {
+    setStatus("busy", `批量推理中… 已等待 ${Math.round((Date.now() - t0) / 1000)} 秒`);
+  }, 1000);
   flash();
   try {
     const res = await api("/api/predict", {
@@ -401,13 +421,14 @@ async function runBatch() {
       text: "batch",
       model: $("modelSelect").value || null,
       run_all_samples: true,
-    });
+    }, 180000);
     renderBatchResults(res);
     setStatus("ok", `完成 ${res.results?.length || 0} 条样例`);
   } catch (e) {
     $("resultBody").innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
     setStatus("err", "批量失败");
   } finally {
+    clearInterval(tick);
     $("btnBatch").disabled = false;
   }
 }

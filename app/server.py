@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from __future__ import annotations
-
 import os
 from pathlib import Path
 from typing import Any
@@ -13,12 +11,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.engine import engine
-from app.scenarios import get_scenario, list_scenarios
-
 # Prefer HF mirror when the default hub is unreachable (common on CN networks).
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+
+from app.engine import engine  # noqa: E402
+from app.scenarios import get_scenario, list_scenarios  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = ROOT / "static"
@@ -29,7 +27,7 @@ app = FastAPI(title="Laya System 1 Decision Playground", version="0.1.0")
 class PredictBody(BaseModel):
     scenario_id: str
     text: str = Field(min_length=1, max_length=8000)
-    model: str | None = Field(default=None, description="Optional checkpoint override: english | multilingual | typed-decisions")
+    model: str | None = Field(default=None, description="Optional checkpoint override: english | multilingual")
     run_all_samples: bool = False
 
 
@@ -61,22 +59,23 @@ def predict(body: PredictBody) -> dict[str, Any]:
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    if body.run_all_samples:
-        items = []
-        for sample in scenario["samples"]:
-            state = {scenario["state_key"]: sample["text"]}
-            res = engine.predict(state, scenario["questions"], model=body.model)
-            res["sample_id"] = sample["id"]
-            res["sample_label"] = sample["label"]
-            res["text"] = sample["text"]
-            items.append(res)
-        return {"scenario_id": scenario["id"], "mode": "batch_samples", "results": items}
-
-    state = {scenario["state_key"]: body.text}
     try:
+        if body.run_all_samples:
+            items = []
+            for sample in scenario["samples"]:
+                state = {scenario["state_key"]: sample["text"]}
+                res = engine.predict(state, scenario["questions"], model=body.model)
+                res["sample_id"] = sample["id"]
+                res["sample_label"] = sample["label"]
+                res["text"] = sample["text"]
+                items.append(res)
+            return {"scenario_id": scenario["id"], "mode": "batch_samples", "results": items}
+
+        state = {scenario["state_key"]: body.text}
         res = engine.predict(state, scenario["questions"], model=body.model)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"inference failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"推理失败：{exc}") from exc
+
     res["scenario_id"] = scenario["id"]
     res["text"] = body.text
     res["mode"] = "single"
@@ -93,7 +92,7 @@ def route(body: RouteBody) -> dict[str, Any]:
     try:
         decision = engine.route_only(state, scenario["questions"], model=body.model)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"route failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"选模型失败：{exc}") from exc
     return {"scenario_id": scenario["id"], "routing": decision}
 
 
@@ -102,7 +101,7 @@ def warmup() -> dict[str, Any]:
     try:
         engine.ensure_loaded()
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"warmup failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"加载模型失败：{exc}") from exc
     return {"ok": True, "engine_ready": True}
 
 

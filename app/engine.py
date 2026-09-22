@@ -1,18 +1,26 @@
-"""Laya Router engine: real CPU inference, no mock data."""
+"""Laya Router engine: real CPU inference, no mock data.
+
+Loads from local Hugging Face cache first so a flaky network cannot hang a request.
+"""
 
 from __future__ import annotations
 
+import os
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 from laya import Router
+
+HF_CACHE = Path.home() / ".cache" / "huggingface" / "hub" / "models--convaiinnovations--laya"
 
 
 class LayaEngine:
     def __init__(self) -> None:
         self._router: Router | None = None
         self._lock = threading.Lock()
+        self._infer_lock = threading.Lock()
         self._load_error: str | None = None
 
     @property
@@ -28,7 +36,11 @@ class LayaEngine:
             if self._router is not None:
                 return self._router
             try:
-                # Keep EN + multilingual resident; skip typed-decisions to save RAM on CPU.
+                # Offline-first: weights already in cache must never re-download / hang.
+                if HF_CACHE.exists():
+                    os.environ["HF_HUB_OFFLINE"] = "1"
+                    os.environ["HF_DATASETS_OFFLINE"] = "1"
+                # Keep EN + multilingual resident; never pull typed-decisions (incomplete + huge).
                 self._router = Router(max_loaded=2, device="cpu")
                 self._router.preload(["english", "multilingual"])
                 self._load_error = None
@@ -43,9 +55,13 @@ class LayaEngine:
         questions: dict[str, Any],
         model: str | None = None,
     ) -> dict[str, Any]:
+        # typed-decisions is not preloaded on this demo — force a resident checkpoint instead.
+        if model == "typed-decisions":
+            model = None
         router = self.ensure_loaded()
         t0 = time.perf_counter()
-        result = router.predict(state, questions, model=model)
+        with self._infer_lock:
+            result = router.predict(state, questions, model=model)
         latency_ms = (time.perf_counter() - t0) * 1000.0
         result = _jsonify(result)
         result["latency_ms"] = round(latency_ms, 1)
@@ -57,6 +73,8 @@ class LayaEngine:
         questions: dict[str, Any] | None = None,
         model: str | None = None,
     ) -> dict[str, Any]:
+        if model == "typed-decisions":
+            model = None
         router = self.ensure_loaded()
         decision = router.route(state, questions, model=model)
         return _jsonify(dict(decision))
