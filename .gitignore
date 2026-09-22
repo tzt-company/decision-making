@@ -1,0 +1,18 @@
+# local tooling
+.playwright-cli/
+
+# runtime logs
+server.log
+server.err.log
+*.log
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# model / cache dumps
+.cache/
+*.safetensors
+*.bin
