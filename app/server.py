@@ -1,0 +1,124 @@
+"""FastAPI server: serves the playground UI and real Laya CPU inference."""
+
+from __future__ import annotations
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Any
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+from app.engine import engine
+from app.scenarios import get_scenario, list_scenarios
+
+# Prefer HF mirror when the default hub is unreachable (common on CN networks).
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+
+ROOT = Path(__file__).resolve().parent.parent
+STATIC = ROOT / "static"
+
+app = FastAPI(title="Laya System 1 Decision Playground", version="0.1.0")
+
+
+class PredictBody(BaseModel):
+    scenario_id: str
+    text: str = Field(min_length=1, max_length=8000)
+    model: str | None = Field(default=None, description="Optional checkpoint override: english | multilingual | typed-decisions")
+    run_all_samples: bool = False
+
+
+class RouteBody(BaseModel):
+    scenario_id: str
+    text: str = Field(min_length=1, max_length=8000)
+    model: str | None = None
+
+
+@app.get("/api/health")
+def health() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "engine_ready": engine.ready,
+        "load_error": engine.load_error,
+        "backend": "laya-cpu",
+    }
+
+
+@app.get("/api/scenarios")
+def scenarios() -> dict[str, Any]:
+    return {"scenarios": list_scenarios()}
+
+
+@app.post("/api/predict")
+def predict(body: PredictBody) -> dict[str, Any]:
+    try:
+        scenario = get_scenario(body.scenario_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if body.run_all_samples:
+        items = []
+        for sample in scenario["samples"]:
+            state = {scenario["state_key"]: sample["text"]}
+            res = engine.predict(state, scenario["questions"], model=body.model)
+            res["sample_id"] = sample["id"]
+            res["sample_label"] = sample["label"]
+            res["text"] = sample["text"]
+            items.append(res)
+        return {"scenario_id": scenario["id"], "mode": "batch_samples", "results": items}
+
+    state = {scenario["state_key"]: body.text}
+    try:
+        res = engine.predict(state, scenario["questions"], model=body.model)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"inference failed: {exc}") from exc
+    res["scenario_id"] = scenario["id"]
+    res["text"] = body.text
+    res["mode"] = "single"
+    return res
+
+
+@app.post("/api/route")
+def route(body: RouteBody) -> dict[str, Any]:
+    try:
+        scenario = get_scenario(body.scenario_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    state = {scenario["state_key"]: body.text}
+    try:
+        decision = engine.route_only(state, scenario["questions"], model=body.model)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"route failed: {exc}") from exc
+    return {"scenario_id": scenario["id"], "routing": decision}
+
+
+@app.post("/api/warmup")
+def warmup() -> dict[str, Any]:
+    try:
+        engine.ensure_loaded()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"warmup failed: {exc}") from exc
+    return {"ok": True, "engine_ready": True}
+
+
+@app.get("/")
+def index() -> FileResponse:
+    return FileResponse(STATIC / "index.html")
+
+
+app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+
+def main() -> None:
+    import uvicorn
+
+    uvicorn.run("app.server:app", host="127.0.0.1", port=8766, reload=False)
+
+
+if __name__ == "__main__":
+    main()
