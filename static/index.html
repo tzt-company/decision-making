@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Laya · System 1 决策台</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/styles.css?v=4" />
 </head>
 <body>
 <p data-aigc-mark="1" style="margin:0 0 8px;font-size:10px;line-height:1.3;color:#6b6560;font-weight:400;">AI生成</p>
@@ -41,7 +41,8 @@
         </div>
       </div>
 
-      <section class="panel">
+      <!-- 文本判定类场景 -->
+      <section class="panel" id="inputPanel">
         <div class="panel-head">
           <div class="panel-title">要判断的文本</div>
           <div class="panel-title" id="stateKey"></div>
@@ -72,21 +73,14 @@
         </div>
       </section>
 
-      <section class="panel">
+      <!-- Git 提交预检独立场景 -->
+      <section class="panel" id="precheckPanel" hidden>
         <div class="panel-head">
-          <div class="panel-title">要回答的问题（一次全部答完）</div>
-          <div class="panel-title" id="qCount"></div>
-        </div>
-        <div class="q-grid" id="questionList"></div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <div class="panel-title">提交安全预检 · 自动读 git 改动</div>
+          <div class="panel-title">开发提交流程 · 自动读本仓库 git 改动</div>
           <div class="panel-title" id="precheckMeta">无需粘贴代码</div>
         </div>
         <p class="desc" style="margin:0 0 12px;color:var(--muted);font-size:13px;">
-          直接扫描本仓库暂存区 / 工作区 / 最近一次提交：正则抓密钥 + Laya 评风险分，给出拦截 / 复核 / 放行。
+          代码提交 git 前预检：暂存区 → 工作区 → 最近一次提交。密钥正则硬拦 + Laya 高危/泄漏评分，输出拦截 / 复核 / 放行。
         </p>
         <div class="controls" style="margin-top:0;">
           <div class="field">
@@ -99,12 +93,20 @@
             </select>
           </div>
           <div class="btn-row">
-            <button class="btn btn-primary" id="btnPrecheck" type="button">自检当前改动</button>
+            <button class="btn btn-primary" id="btnPrecheck" type="button">提交前自检</button>
           </div>
         </div>
         <div id="precheckBody" style="margin-top:14px;">
-          <div class="empty">点「自检当前改动」，会自动读 git diff，不用拷贝代码。</div>
+          <div class="empty">点「提交前自检」，自动读 git diff，不用拷贝代码。</div>
         </div>
+      </section>
+
+      <section class="panel" id="questionPanel">
+        <div class="panel-head">
+          <div class="panel-title">要回答的问题（一次全部答完）</div>
+          <div class="panel-title" id="qCount"></div>
+        </div>
+        <div class="q-grid" id="questionList"></div>
       </section>
 
       <section class="panel" id="resultPanel">
@@ -120,6 +122,6 @@
   </div>
 
   <div class="flash" id="flash" hidden><span>一次前向 · 全部出结果</span></div>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=4"></script>
 </body>
 </html>

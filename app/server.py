@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -127,7 +127,9 @@ def warmup() -> dict[str, Any]:
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(STATIC / "index.html")
+    resp = FileResponse(STATIC / "index.html")
+    resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return resp
 
 
 app.mount("/static", StaticFiles(directory=STATIC), name="static")

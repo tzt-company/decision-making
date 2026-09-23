@@ -10,8 +10,24 @@ from typing import Any
 
 from laya import guard_questions, moderation_questions, triage_questions
 
+from app.git_scan import PRECHECK_QUESTIONS
+
 # 展示层词典：问题标题 / 说明 / 选项中文对照
 Q_DISPLAY: dict[str, dict[str, Any]] = {
+    "hardcoded_secret": {"title": "硬编码密钥/凭证", "instructions": "是否写死了密钥、口令、令牌或私钥？"},
+    "injection_risk": {"title": "注入/危险执行", "instructions": "是否有 SQL 注入、命令注入、路径穿越或 eval/exec？"},
+    "sensitive_leak": {"title": "敏感信息泄漏", "instructions": "是否泄漏个人数据、内网地址或私有信息？"},
+    "risk_level": {
+        "title": "风险等级",
+        "instructions": "这次改动的安全风险有多严重？",
+        "levels": {
+            "0": "无：常规安全改动",
+            "1": "低：轻微卫生问题",
+            "2": "高：疑似密钥/注入/泄漏",
+            "3": "严重：明确凭证泄漏或危险调用",
+        },
+    },
+    "should_block": {"title": "是否应拦截", "instructions": "是否应拦下这次提交？"},
     "intent": {
         "title": "意图归属",
         "instructions": "客户这条消息想解决什么？",
@@ -297,6 +313,19 @@ SCENARIOS: list[dict[str, Any]] = [
             },
         ],
     },
+    {
+        "id": "git-precheck",
+        "title": "Git 提交预检",
+        "subtitle": "提交 · 自动读改动",
+        "description": "开发代码提交 git 前的安全预检：自动扫暂存区/工作区/最近提交，查密钥泄漏与高危漏洞写法并评分。",
+        "state_key": "diff",
+        "state_label": "git 改动（自动读取）",
+        "questions": PRECHECK_QUESTIONS,
+        "primitive_tags": ["noul", "score"],
+        "mode": "git_precheck",
+        "samples": [],
+        "builtin": True,
+    },
 ]
 
 SCENARIO_BY_ID = {s["id"]: s for s in SCENARIOS}
@@ -346,6 +375,7 @@ def list_scenarios() -> list[dict[str, Any]]:
                 ],
                 "questions": decorate_questions(s["questions"]),
                 "questions_raw": s["questions"],
+                "builtin": s.get("builtin", False),
             }
         )
     return out

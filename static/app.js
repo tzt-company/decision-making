@@ -464,6 +464,23 @@ function selectScenario(id) {
   state.sampleId = scn.samples?.[0]?.id || null;
   $("scnTitle").textContent = scn.title;
   $("scnDesc").textContent = scn.description;
+
+  const isPrecheck = scn.mode === "git_precheck" || scn.id === "git-precheck";
+  $("inputPanel").hidden = isPrecheck;
+  $("precheckPanel").hidden = !isPrecheck;
+  $("questionPanel").hidden = false;
+  $("resultPanel").hidden = isPrecheck; // 预检结果画在 precheckBody
+  if (isPrecheck) {
+    $("stateKey").textContent = scn.state_label || "";
+    renderScenarios();
+    renderQuestions(scn);
+    $("precheckBody").innerHTML =
+      '<div class="empty">点「提交前自检」，自动读 git diff，不用拷贝代码。</div>';
+    $("precheckMeta").textContent = "无需粘贴代码";
+    return;
+  }
+
+  $("resultPanel").hidden = false;
   $("stateKey").textContent = scn.state_label || "";
   const first = scn.samples?.[0];
   $("stateText").value = first?.text || "";
