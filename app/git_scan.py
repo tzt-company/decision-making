@@ -50,6 +50,7 @@ class ChangeSet:
     full_diff: str = ""     # 给正则密钥扫描用（不截断）
     truncated: bool = False
     empty: bool = False
+    repo: str = ""
 
 
 @dataclass
@@ -73,12 +74,67 @@ def _run_git(args: list[str], cwd: Path | None = None) -> str:
     return res.stdout if res.returncode == 0 else ""
 
 
-def collect_changes(mode: str = "auto") -> ChangeSet:
+def _resolve_repo(repo_path: str | Path | None) -> Path:
+    """定位要检查的 git 仓库；默认当前 Demo 仓库。"""
+    if not repo_path:
+        return PROJECT_ROOT
+    p = Path(str(repo_path)).expanduser().resolve()
+    if not p.exists():
+        raise FileNotFoundError(f"路径不存在：{p}")
+    if (p / ".git").exists():
+        return p
+    # 允许传仓库下的子目录
+    cur = p
+    for _ in range(6):
+        if (cur / ".git").exists():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    raise FileNotFoundError(f"不是 git 仓库：{p}")
+
+
+def list_repos(roots: list[str | Path] | None = None) -> list[dict[str, str]]:
+    """扫描常见工作区根目录下的 git 仓库，便于界面上选择。"""
+    if roots is None:
+        candidates = [
+            PROJECT_ROOT,
+            PROJECT_ROOT.parent,  # D:\0WORKSPACE
+            Path.home() / "workspace",
+            Path.home() / "projects",
+            Path.home() / "code",
+        ]
+    else:
+        candidates = [Path(r) for r in roots]
+    seen: set[str] = set()
+    out: list[dict[str, str]] = []
+    for root in candidates:
+        if not root.exists():
+            continue
+        try:
+            if (root / ".git").exists():
+                key = str(root.resolve())
+                if key not in seen:
+                    seen.add(key)
+                    out.append({"path": key, "name": root.name})
+            for child in sorted(root.iterdir())[:40]:
+                if child.is_dir() and (child / ".git").exists():
+                    key = str(child.resolve())
+                    if key not in seen:
+                        seen.add(key)
+                        out.append({"path": key, "name": child.name})
+        except OSError:
+            continue
+    return out
+
+
+def collect_changes(mode: str = "auto", repo_path: str | Path | None = None) -> ChangeSet:
     """mode: auto | staged | working | last-commit"""
+    root = _resolve_repo(repo_path)
     if mode == "auto":
-        staged = _run_git(["diff", "--cached", "--name-only"])
-        working = _run_git(["diff", "--name-only"])
-        unstaged_untracked = _run_git(["ls-files", "--others", "--exclude-standard"])
+        staged = _run_git(["diff", "--cached", "--name-only"], cwd=root)
+        working = _run_git(["diff", "--name-only"], cwd=root)
+        unstaged_untracked = _run_git(["ls-files", "--others", "--exclude-standard"], cwd=root)
         if staged.strip():
             mode = "staged"
         elif working.strip() or unstaged_untracked.strip():
@@ -87,17 +143,16 @@ def collect_changes(mode: str = "auto") -> ChangeSet:
             mode = "last-commit"
 
     if mode == "staged":
-        diff = _run_git(["diff", "--cached", "--unified=3"])
-        names = _run_git(["diff", "--cached", "--name-only"])
+        diff = _run_git(["diff", "--cached", "--unified=3"], cwd=root)
+        names = _run_git(["diff", "--cached", "--name-only"], cwd=root)
         source = "staged"
     elif mode == "working":
-        diff = _run_git(["diff", "--unified=3"])
-        names = _run_git(["diff", "--name-only"])
-        # 未跟踪的新文件优先拼进 diff，避免被后面截断挤掉
-        untracked = _run_git(["ls-files", "--others", "--exclude-standard"]).splitlines()
+        diff = _run_git(["diff", "--unified=3"], cwd=root)
+        names = _run_git(["diff", "--name-only"], cwd=root)
+        untracked = _run_git(["ls-files", "--others", "--exclude-standard"], cwd=root).splitlines()
         untracked_chunks: list[str] = []
         for rel in untracked:
-            p = PROJECT_ROOT / rel
+            p = root / rel
             if not p.is_file() or p.stat().st_size >= 200_000:
                 continue
             if p.suffix.lower() not in CODE_EXTS and p.name not in {".env", "credentials", "secrets"}:
@@ -113,8 +168,8 @@ def collect_changes(mode: str = "auto") -> ChangeSet:
         diff = "".join(untracked_chunks) + diff
         source = "working"
     else:
-        diff = _run_git(["show", "HEAD", "--unified=3", "--format=commit %H%n%s%n"])
-        names = _run_git(["show", "HEAD", "--name-only", "--format="])
+        diff = _run_git(["show", "HEAD", "--unified=3", "--format=commit %H%n%s%n"], cwd=root)
+        names = _run_git(["show", "HEAD", "--name-only", "--format="], cwd=root)
         source = "last-commit"
 
     files = [ln.strip() for ln in names.splitlines() if ln.strip()]
@@ -125,7 +180,7 @@ def collect_changes(mode: str = "auto") -> ChangeSet:
         diff = diff[:MAX_DIFF_CHARS] + "\n...[diff truncated]..."
         truncated = True
 
-    return ChangeSet(
+    cs = ChangeSet(
         source=source,
         files=files,
         diff=diff,
@@ -133,6 +188,8 @@ def collect_changes(mode: str = "auto") -> ChangeSet:
         truncated=truncated,
         empty=not full_diff.strip() and not files,
     )
+    cs.repo = str(root)  # type: ignore[attr-defined]
+    return cs
 
 
 def find_secrets(diff: str, files: list[str]) -> list[SecretHit]:

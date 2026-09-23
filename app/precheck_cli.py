@@ -18,13 +18,14 @@ os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 def main() -> int:
     parser = argparse.ArgumentParser(description="Laya 代码提交安全预检（自动读 git 改动）")
     parser.add_argument("--mode", default="auto", choices=["auto", "staged", "working", "last-commit"])
+    parser.add_argument("--repo", default=None, help="git 仓库路径（默认当前 Demo 仓库）")
     parser.add_argument("--json", action="store_true", help="输出 JSON")
     args = parser.parse_args()
 
     from app.precheck import run_precheck
 
     try:
-        report = run_precheck(args.mode)
+        report = run_precheck(args.mode, repo_path=args.repo)
     except Exception as exc:  # noqa: BLE001
         print(f"预检失败：{exc}", file=sys.stderr)
         return 2
@@ -32,6 +33,7 @@ def main() -> int:
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
+        print(f"项目：{report.get('repo')}")
         print(f"检查范围：{report.get('source')} · 文件 {report.get('file_count', 0)} 个")
         print(f"风险分：{report.get('score')} / 100（越高越危险）")
         print(f"结论：{report.get('verdict_zh')}")

@@ -21,6 +21,7 @@ os.environ.setdefault("HF_HUB_CACHE", str(_ROOT / "models" / "hub"))
 os.environ.setdefault("HF_HOME", str(_ROOT / "models"))
 
 from app.engine import engine  # noqa: E402
+from app.git_scan import list_repos  # noqa: E402
 from app.precheck import run_precheck  # noqa: E402
 from app.scenarios import get_scenario, list_scenarios  # noqa: E402
 
@@ -45,6 +46,7 @@ class RouteBody(BaseModel):
 
 class PrecheckBody(BaseModel):
     mode: str = Field(default="auto", description="auto | staged | working | last-commit")
+    repo_path: str | None = Field(default=None, description="要检查的 git 仓库路径；默认当前 Demo 仓库")
 
 
 @app.get("/api/health")
@@ -106,12 +108,24 @@ def route(body: RouteBody) -> dict[str, Any]:
     return {"scenario_id": scenario["id"], "routing": decision}
 
 
+@app.get("/api/repos")
+def repos() -> dict[str, Any]:
+    """列出可选的 git 项目。"""
+    try:
+        return {"repos": list_repos()}
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"扫描项目失败：{exc}") from exc
+
+
 @app.post("/api/precheck")
 def precheck(body: PrecheckBody | None = None) -> dict[str, Any]:
-    """自动读当前仓库 git 改动做安全预检，无需手动粘贴代码。"""
+    """自动读指定项目的 git 改动做安全预检，无需手动粘贴代码。"""
     mode = (body.mode if body else "auto") or "auto"
+    repo_path = body.repo_path if body else None
     try:
-        return run_precheck(mode)
+        return run_precheck(mode, repo_path=repo_path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"预检失败：{exc}") from exc
 

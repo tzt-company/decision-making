@@ -22,12 +22,13 @@ BLOCK_SCORE_THRESHOLD = 2.2  # risk_level 0–3
 BLOCK_POB = 0.8
 
 
-def run_precheck(mode: str = "auto") -> dict[str, Any]:
-    change = collect_changes(mode)
+def run_precheck(mode: str = "auto", repo_path: str | None = None) -> dict[str, Any]:
+    change = collect_changes(mode, repo_path=repo_path)
     if change.empty:
         return {
             "ok": True,
             "source": change.source,
+            "repo": change.repo,
             "empty": True,
             "verdict": "allow",
             "verdict_zh": "没有需要检查的代码改动",
@@ -35,7 +36,7 @@ def run_precheck(mode: str = "auto") -> dict[str, Any]:
             "files": [],
             "secret_hits": [],
             "danger_hits": [],
-            "reasons": ["工作区与暂存区均无 diff，可放行"],
+            "reasons": [f"仓库 {change.repo} 无 diff，可放行"],
             "answers": {},
             "latency_ms": 0,
         }
@@ -123,6 +124,7 @@ def run_precheck(mode: str = "auto") -> dict[str, Any]:
     return {
         "ok": True,
         "source": change.source,
+        "repo": change.repo,
         "empty": False,
         "truncated": change.truncated,
         "files": change.files,

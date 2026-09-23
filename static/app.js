@@ -336,6 +336,7 @@ function renderPrecheck(rep) {
     <div class="result-hero">
       ${badge}
       <span class="badge latency">风险分 <strong style="margin-left:6px">${rep.score}</strong> / 100</span>
+      <span class="badge">项目：${escapeHtml(rep.repo || "")}</span>
       <span class="badge">来源：${escapeHtml(rep.source || "")} · ${rep.file_count || 0} 个文件</span>
       ${rep.latency_ms != null ? `<span class="badge latency">Laya ${rep.latency_ms} ms</span>` : ""}
     </div>
@@ -365,6 +366,25 @@ function renderPrecheck(rep) {
   animateBars(body);
 }
 
+async function loadRepos() {
+  try {
+    const data = await api("/api/repos", null, 15000);
+    const sel = $("repoSelect");
+    const repos = data.repos || [];
+    sel.innerHTML = repos.length
+      ? repos
+          .map((r) => `<option value="${escapeHtml(r.path)}">${escapeHtml(r.name)} · ${escapeHtml(r.path)}</option>`)
+          .join("")
+      : '<option value="">（未发现其它项目，可用下方路径）</option>';
+  } catch {
+    $("repoSelect").innerHTML = '<option value="">（扫描失败，可用下方路径）</option>';
+  }
+}
+
+function currentRepoPath() {
+  return ($("repoPath").value || "").trim() || $("repoSelect").value || "";
+}
+
 async function runPrecheck() {
   $("btnPrecheck").disabled = true;
   const t0 = Date.now();
@@ -372,7 +392,11 @@ async function runPrecheck() {
     $("precheckMeta").textContent = `扫描中… ${Math.round((Date.now() - t0) / 1000)}s`;
   }, 1000);
   try {
-    const res = await api("/api/precheck", { mode: $("precheckMode").value || "auto" }, 120000);
+    const res = await api(
+      "/api/precheck",
+      { mode: $("precheckMode").value || "auto", repo_path: currentRepoPath() || null },
+      180000
+    );
     renderPrecheck(res);
   } catch (e) {
     $("precheckBody").innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
@@ -475,8 +499,9 @@ function selectScenario(id) {
     renderScenarios();
     renderQuestions(scn);
     $("precheckBody").innerHTML =
-      '<div class="empty">点「提交前自检」，自动读 git diff，不用拷贝代码。</div>';
-    $("precheckMeta").textContent = "无需粘贴代码";
+      '<div class="empty">点「提交前自检」，自动读所选项目的 git diff，不用拷贝代码。</div>';
+    $("precheckMeta").textContent = "先选项目";
+    loadRepos();
     return;
   }
 
@@ -492,7 +517,7 @@ function selectScenario(id) {
   $("resultMeta").textContent = "等待判定";
 }
 
-async function api(path, body, timeoutMs = 90000) {
+async function api(path, body, timeoutMs = 120000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -509,7 +534,7 @@ async function api(path, body, timeoutMs = 90000) {
     return data;
   } catch (e) {
     if (e.name === "AbortError") {
-      throw new Error(`等待超时（${Math.round(timeoutMs / 1000)} 秒）。CPU 推理较慢或服务卡住，请稍后再试。`);
+      throw new Error(`等待超时（${Math.round(timeoutMs / 1000)} 秒）。首次预热模型约 1–2 分钟属正常；若反复失败请看服务端日志。`);
     }
     throw e;
   } finally {
@@ -518,9 +543,9 @@ async function api(path, body, timeoutMs = 90000) {
 }
 
 async function warmup() {
-  setStatus("busy", "正在加载模型（CPU，约 1–3 分钟）…");
+  setStatus("busy", "预热模型（CPU，约 1–2 分钟，请稍候）…");
   try {
-    await api("/api/warmup", {});
+    await api("/api/warmup", {}, 240000);
     setStatus("ok", "真模型已就绪（CPU）");
   } catch (e) {
     setStatus("err", `加载失败：${e.message}`);
