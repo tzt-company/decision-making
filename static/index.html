@@ -80,6 +80,33 @@
         <div class="q-grid" id="questionList"></div>
       </section>
 
+      <section class="panel">
+        <div class="panel-head">
+          <div class="panel-title">提交安全预检 · 自动读 git 改动</div>
+          <div class="panel-title" id="precheckMeta">无需粘贴代码</div>
+        </div>
+        <p class="desc" style="margin:0 0 12px;color:var(--muted);font-size:13px;">
+          直接扫描本仓库暂存区 / 工作区 / 最近一次提交：正则抓密钥 + Laya 评风险分，给出拦截 / 复核 / 放行。
+        </p>
+        <div class="controls" style="margin-top:0;">
+          <div class="field">
+            <label for="precheckMode">检查范围</label>
+            <select id="precheckMode">
+              <option value="auto">自动（有改动扫改动，否则最近一次提交）</option>
+              <option value="staged">仅暂存区（git add 的）</option>
+              <option value="working">仅工作区未暂存</option>
+              <option value="last-commit">最近一次提交</option>
+            </select>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btnPrecheck" type="button">自检当前改动</button>
+          </div>
+        </div>
+        <div id="precheckBody" style="margin-top:14px;">
+          <div class="empty">点「自检当前改动」，会自动读 git diff，不用拷贝代码。</div>
+        </div>
+      </section>
+
       <section class="panel" id="resultPanel">
         <div class="panel-head">
           <div class="panel-title">判定结果 · 风险概率定拦/放，置信度定自动/人工</div>

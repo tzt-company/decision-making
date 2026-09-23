@@ -312,6 +312,77 @@ function escapeHtml(s) {
     .replaceAll('"', "&quot;");
 }
 
+function renderPrecheck(rep) {
+  const body = $("precheckBody");
+  if (rep.empty) {
+    body.innerHTML = `<div class="empty">${escapeHtml(rep.verdict_zh || "没有改动")}</div>`;
+    $("precheckMeta").textContent = "无改动";
+    return;
+  }
+  const v = rep.verdict;
+  const badge =
+    v === "block"
+      ? `<span class="badge hold" style="background:var(--risk-soft);border-color:#fecaca;color:var(--risk)">拦截</span>`
+      : v === "review"
+        ? `<span class="badge hold">需人工复核</span>`
+        : `<span class="badge pass">放行</span>`;
+  const hits = (rep.secret_hits || [])
+    .map(
+      (h) =>
+        `<div class="bar-row"><div class="bar-label"><span>[${escapeHtml(h.kind)}] ${escapeHtml(h.file)}:${h.line_no}</span></div><div class="bar-track" style="height:auto;background:transparent"><code style="font-size:11px;color:var(--muted)">${escapeHtml(h.snippet)}</code></div></div>`
+    )
+    .join("");
+  body.innerHTML = `
+    <div class="result-hero">
+      ${badge}
+      <span class="badge latency">风险分 <strong style="margin-left:6px">${rep.score}</strong> / 100</span>
+      <span class="badge">来源：${escapeHtml(rep.source || "")} · ${rep.file_count || 0} 个文件</span>
+      ${rep.latency_ms != null ? `<span class="badge latency">Laya ${rep.latency_ms} ms</span>` : ""}
+    </div>
+    <div class="route-reason">${escapeHtml(rep.verdict_zh || "")}</div>
+    <div class="answer-grid">
+      <article class="answer-card">
+        <header><h3>模型评分</h3></header>
+        <div class="bars">
+          <div class="bar-row"><div class="bar-label"><span>硬编码密钥 P</span><span>${(rep.secret_p ?? 0).toFixed(3)}</span></div><div class="bar-track"><div class="bar-fill ${rep.secret_p >= 0.5 ? "risk" : "top"}" data-w="${Math.round((rep.secret_p || 0) * 100)}" style="width:0"></div></div></div>
+          <div class="bar-row"><div class="bar-label"><span>注入/危险执行 P</span><span>${(rep.injection_p ?? 0).toFixed(3)}</span></div><div class="bar-track"><div class="bar-fill ${rep.injection_p >= 0.5 ? "risk" : "mid"}" data-w="${Math.round((rep.injection_p || 0) * 100)}" style="width:0"></div></div></div>
+          <div class="bar-row"><div class="bar-label"><span>敏感泄漏 P</span><span>${(rep.leak_p ?? 0).toFixed(3)}</span></div><div class="bar-track"><div class="bar-fill ${rep.leak_p >= 0.5 ? "risk" : "low"}" data-w="${Math.round((rep.leak_p || 0) * 100)}" style="width:0"></div></div></div>
+          <div class="bar-row"><div class="bar-label"><span>风险等级分</span><span>${(rep.risk_level ?? 0).toFixed(2)}</span></div><div class="bar-track"><div class="bar-fill warn" data-w="${Math.min(100, Math.round((rep.risk_level || 0) / 3 * 100))}" style="width:0"></div></div></div>
+        </div>
+      </article>
+      <article class="answer-card">
+        <header><h3>结论依据</h3></header>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--muted);">
+          ${(rep.reasons || []).map((r) => `<li style="margin:4px 0">${escapeHtml(r)}</li>`).join("")}
+        </ul>
+        ${hits ? `<div style="margin-top:10px;font-family:var(--mono);font-size:11px;">正则命中密钥：</div>${hits}` : ""}
+        ${(rep.danger_hits || []).length ? `<div style="margin-top:10px;font-family:var(--mono);font-size:11px;">危险写法：</div>${(rep.danger_hits || []).map((h) => `<div class="bar-row"><div class="bar-label"><span>[${escapeHtml(h.kind)}] ${escapeHtml(h.file)}:${h.line_no}</span></div></div>`).join("")}` : ""}
+      </article>
+    </div>
+    <div class="route-reason" style="margin-top:10px">扫描文件：${escapeHtml((rep.files || []).slice(0, 12).join("、") || "—")}${rep.truncated ? "（diff 过长已截断）" : ""}</div>
+  `;
+  $("precheckMeta").textContent = rep.verdict_zh || "";
+  animateBars(body);
+}
+
+async function runPrecheck() {
+  $("btnPrecheck").disabled = true;
+  const t0 = Date.now();
+  const tick = setInterval(() => {
+    $("precheckMeta").textContent = `扫描中… ${Math.round((Date.now() - t0) / 1000)}s`;
+  }, 1000);
+  try {
+    const res = await api("/api/precheck", { mode: $("precheckMode").value || "auto" }, 120000);
+    renderPrecheck(res);
+  } catch (e) {
+    $("precheckBody").innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+    $("precheckMeta").textContent = "预检失败";
+  } finally {
+    clearInterval(tick);
+    $("btnPrecheck").disabled = false;
+  }
+}
+
 function renderQuestions(scn) {
   const list = $("questionList");
   list.innerHTML = "";
@@ -527,6 +598,7 @@ function bind() {
   $("btnRun").addEventListener("click", runPredict);
   $("btnBatch").addEventListener("click", runBatch);
   $("btnRoute").addEventListener("click", runRouteOnly);
+  $("btnPrecheck").addEventListener("click", runPrecheck);
   $("gateRange").addEventListener("input", (e) => {
     state.gate = Number(e.target.value);
     $("gateVal").textContent = state.gate.toFixed(2);

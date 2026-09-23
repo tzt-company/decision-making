@@ -21,6 +21,7 @@ os.environ.setdefault("HF_HUB_CACHE", str(_ROOT / "models" / "hub"))
 os.environ.setdefault("HF_HOME", str(_ROOT / "models"))
 
 from app.engine import engine  # noqa: E402
+from app.precheck import run_precheck  # noqa: E402
 from app.scenarios import get_scenario, list_scenarios  # noqa: E402
 
 ROOT = _ROOT
@@ -40,6 +41,10 @@ class RouteBody(BaseModel):
     scenario_id: str
     text: str = Field(min_length=1, max_length=8000)
     model: str | None = None
+
+
+class PrecheckBody(BaseModel):
+    mode: str = Field(default="auto", description="auto | staged | working | last-commit")
 
 
 @app.get("/api/health")
@@ -99,6 +104,16 @@ def route(body: RouteBody) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"选模型失败：{exc}") from exc
     return {"scenario_id": scenario["id"], "routing": decision}
+
+
+@app.post("/api/precheck")
+def precheck(body: PrecheckBody | None = None) -> dict[str, Any]:
+    """自动读当前仓库 git 改动做安全预检，无需手动粘贴代码。"""
+    mode = (body.mode if body else "auto") or "auto"
+    try:
+        return run_precheck(mode)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"预检失败：{exc}") from exc
 
 
 @app.post("/api/warmup")
