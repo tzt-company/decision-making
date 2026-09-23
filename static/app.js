@@ -360,7 +360,7 @@ function renderPrecheck(rep) {
         ${(rep.danger_hits || []).length ? `<div style="margin-top:10px;font-family:var(--mono);font-size:11px;">危险写法：</div>${(rep.danger_hits || []).map((h) => `<div class="bar-row"><div class="bar-label"><span>[${escapeHtml(h.kind)}] ${escapeHtml(h.file)}:${h.line_no}</span></div></div>`).join("")}` : ""}
       </article>
     </div>
-    <div class="route-reason" style="margin-top:10px">扫描文件：${escapeHtml((rep.files || []).slice(0, 12).join("、") || "—")}${rep.truncated ? "（diff 过长已截断）" : ""}</div>
+    <div class="route-reason" style="margin-top:10px">扫描文件：${escapeHtml((rep.files || []).slice(0, 12).join("、") || "—")} · 正则全文 · 模型 ${rep.chunks_scanned || 1}/${rep.chunks_total || 1} 段（取最高风险）</div>
   `;
   $("precheckMeta").textContent = rep.verdict_zh || "";
   animateBars(body);

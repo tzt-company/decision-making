@@ -6,12 +6,14 @@ from typing import Any
 
 from app.engine import engine
 from app.git_scan import (
+    MAX_MODEL_CHUNKS,
     PRECHECK_DISPLAY,
     PRECHECK_QUESTIONS,
     build_scan_state,
     collect_changes,
     find_danger,
     find_secrets,
+    split_diff_chunks,
 )
 
 # 正则命中密钥 → 硬拦截。模型单独高分不足以拦（底座未做代码安全微调，易误报）。
@@ -43,15 +45,32 @@ def run_precheck(mode: str = "auto", repo_path: str | None = None) -> dict[str, 
 
     secrets = find_secrets(change.full_diff or change.diff, change.files)
     dangers = find_danger(change.full_diff or change.diff)
-    state = build_scan_state(change, secrets)
-    res = engine.predict(state, PRECHECK_QUESTIONS)
-    answers = res.get("answers", {})
 
-    secret_p = float(answers.get("hardcoded_secret", {}).get("noul", 0.0))
-    inject_p = float(answers.get("injection_risk", {}).get("noul", 0.0))
-    leak_p = float(answers.get("sensitive_leak", {}).get("noul", 0.0))
-    risk_score = float(answers.get("risk_level", {}).get("score", 0.0))
-    block_p = float(answers.get("should_block", {}).get("noul", 0.0))
+    # 长 diff 分段送模型，取各段最高风险，避免只看开头导致漏判
+    chunks = split_diff_chunks(change.full_diff or change.diff)
+    scanned = chunks[:MAX_MODEL_CHUNKS]
+    secret_p = inject_p = leak_p = block_p = 0.0
+    risk_score = 0.0
+    answers: dict[str, Any] = {}
+    latency_sum = 0.0
+    routing = None
+    for i, chunk in enumerate(scanned):
+        state = build_scan_state(change, secrets)
+        state["diff"] = chunk
+        state["chunk_index"] = f"{i + 1}/{len(chunks)}"
+        res = engine.predict(state, PRECHECK_QUESTIONS)
+        latency_sum += float(res.get("latency_ms") or 0)
+        routing = res.get("routing") or routing
+        answers = res.get("answers") or answers
+        secret_p = max(secret_p, float(answers.get("hardcoded_secret", {}).get("noul", 0.0)))
+        inject_p = max(inject_p, float(answers.get("injection_risk", {}).get("noul", 0.0)))
+        leak_p = max(leak_p, float(answers.get("sensitive_leak", {}).get("noul", 0.0)))
+        risk_score = max(risk_score, float(answers.get("risk_level", {}).get("score", 0.0)))
+        block_p = max(block_p, float(answers.get("should_block", {}).get("noul", 0.0)))
+
+    coverage = "full" if len(scanned) >= len(chunks) else "partial"
+    if not chunks:
+        coverage = "empty"
 
     reasons: list[str] = []
     block = False
@@ -121,6 +140,13 @@ def run_precheck(mode: str = "auto", repo_path: str | None = None) -> dict[str, 
         if not secrets and not dangers:
             reasons.append("无正则硬命中")
 
+    if coverage == "partial":
+        reasons.append(
+            f"diff 较大：正则已扫全文；模型分段扫描 {len(scanned)}/{len(chunks)} 段（其余段未进模型）"
+        )
+    elif coverage == "full" and len(chunks) > 1:
+        reasons.append(f"diff 较大：正则全文；模型已分 {len(chunks)} 段全部扫描并取最高风险")
+
     return {
         "ok": True,
         "source": change.source,
@@ -145,9 +171,12 @@ def run_precheck(mode: str = "auto", repo_path: str | None = None) -> dict[str, 
         "injection_p": inject_p,
         "leak_p": leak_p,
         "block_p": block_p,
+        "chunks_total": len(chunks),
+        "chunks_scanned": len(scanned),
+        "model_coverage": coverage,
         "reasons": reasons,
         "answers": answers,
-        "routing": res.get("routing"),
-        "latency_ms": res.get("latency_ms"),
+        "routing": routing,
+        "latency_ms": round(latency_sum, 1),
         "display": PRECHECK_DISPLAY,
     }

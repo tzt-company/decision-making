@@ -10,8 +10,9 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# 粘贴/下载的超大 diff 会截断，避免模型塞不下
-MAX_DIFF_CHARS = 12000
+# 模型单次输入有上限；长 diff 会分段送入，而不是只看开头
+CHUNK_CHARS = 6000
+MAX_MODEL_CHUNKS = 8  # 最多 8 段，约 48KB，CPU 延迟可控
 MAX_FILES = 40
 
 SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
@@ -175,21 +176,56 @@ def collect_changes(mode: str = "auto", repo_path: str | Path | None = None) -> 
     files = [ln.strip() for ln in names.splitlines() if ln.strip()]
     files = files[:MAX_FILES]
     full_diff = diff
+    # 给「单段」消费者保留截断副本；预检主路径会分段扫 full_diff
     truncated = False
-    if len(diff) > MAX_DIFF_CHARS:
-        diff = diff[:MAX_DIFF_CHARS] + "\n...[diff truncated]..."
+    model_diff = diff
+    if len(diff) > CHUNK_CHARS:
+        model_diff = diff[:CHUNK_CHARS]
         truncated = True
 
     cs = ChangeSet(
         source=source,
         files=files,
-        diff=diff,
+        diff=model_diff,
         full_diff=full_diff,
         truncated=truncated,
         empty=not full_diff.strip() and not files,
     )
     cs.repo = str(root)  # type: ignore[attr-defined]
     return cs
+
+
+def split_diff_chunks(full_diff: str, chunk_chars: int = CHUNK_CHARS) -> list[str]:
+    """按文件边界优先切段，保证模型尽量扫完全文。"""
+    if not full_diff:
+        return []
+    if len(full_diff) <= chunk_chars:
+        return [full_diff]
+    parts: list[str] = []
+    current: list[str] = []
+    size = 0
+    for block in full_diff.splitlines(keepends=True):
+        if size + len(block) > chunk_chars and current:
+            parts.append("".join(current))
+            current = []
+            size = 0
+        current.append(block)
+        size += len(block)
+    if current:
+        parts.append("".join(current))
+    # 合并过碎的小段
+    merged: list[str] = []
+    buf = ""
+    for p in parts:
+        if buf and len(buf) + len(p) <= chunk_chars:
+            buf += p
+        else:
+            if buf:
+                merged.append(buf)
+            buf = p
+    if buf:
+        merged.append(buf)
+    return merged
 
 
 def find_secrets(diff: str, files: list[str]) -> list[SecretHit]:
