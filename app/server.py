@@ -109,10 +109,11 @@ def route(body: RouteBody) -> dict[str, Any]:
 
 
 @app.get("/api/repos")
-def repos() -> dict[str, Any]:
-    """列出可选的 git 项目。"""
+def repos(root: str | None = None) -> dict[str, Any]:
+    """列出可选的 git 项目。root 可选：扫描该目录及其一级子目录。"""
     try:
-        return {"repos": list_repos()}
+        roots = [root] if root else None
+        return {"repos": list_repos(roots), "root": root or None}
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"扫描项目失败：{exc}") from exc
 

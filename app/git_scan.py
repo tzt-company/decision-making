@@ -96,17 +96,12 @@ def _resolve_repo(repo_path: str | Path | None) -> Path:
 
 
 def list_repos(roots: list[str | Path] | None = None) -> list[dict[str, str]]:
-    """扫描常见工作区根目录下的 git 仓库，便于界面上选择。"""
+    """列出 git 仓库，便于界面上选择。默认只看本应用上级目录，不写死本机盘符。"""
     if roots is None:
-        candidates = [
-            PROJECT_ROOT,
-            PROJECT_ROOT.parent,  # D:\0WORKSPACE
-            Path.home() / "workspace",
-            Path.home() / "projects",
-            Path.home() / "code",
-        ]
+        # 可移植默认：当前仓库 + 其父目录（通常是你 clone 到的工作区）
+        candidates = [PROJECT_ROOT, PROJECT_ROOT.parent]
     else:
-        candidates = [Path(r) for r in roots]
+        candidates = [Path(str(r)).expanduser() for r in roots]
     seen: set[str] = set()
     out: list[dict[str, str]] = []
     for root in candidates:
@@ -118,7 +113,8 @@ def list_repos(roots: list[str | Path] | None = None) -> list[dict[str, str]]:
                 if key not in seen:
                     seen.add(key)
                     out.append({"path": key, "name": root.name})
-            for child in sorted(root.iterdir())[:40]:
+            # 只扫一层子目录，避免全盘遍历
+            for child in sorted(root.iterdir())[:50]:
                 if child.is_dir() and (child / ".git").exists():
                     key = str(child.resolve())
                     if key not in seen:

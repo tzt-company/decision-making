@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Laya · System 1 决策台</title>
-  <link rel="stylesheet" href="/static/styles.css?v=6" />
+  <link rel="stylesheet" href="/static/styles.css?v=8" />
 </head>
 <body>
 <p data-aigc-mark="1" style="margin:0 0 8px;font-size:10px;line-height:1.3;color:#6b6560;font-weight:400;">AI生成</p>
@@ -84,14 +84,8 @@
         </p>
         <div class="controls" style="margin-top:0;">
           <div class="field">
-            <label for="repoSelect">要检查的项目</label>
-            <select id="repoSelect" style="min-width:280px">
-              <option value="">正在扫描项目…</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="repoPath">或填写仓库路径</label>
-            <input id="repoPath" type="text" placeholder="例如 D:\0WORKSPACE\my-app" style="min-width:260px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff" />
+            <label for="repoPath">要检查的 git 仓库路径</label>
+            <input id="repoPath" type="text" placeholder="例如 D:\0WORKSPACE\my-app 或 /home/me/my-app" style="min-width:360px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff" />
           </div>
           <div class="field">
             <label for="precheckMode">检查范围</label>
@@ -132,6 +126,6 @@
   </div>
 
   <div class="flash" id="flash" hidden><span>一次前向 · 全部出结果</span></div>
-  <script src="/static/app.js?v=6"></script>
+  <script src="/static/app.js?v=8"></script>
 </body>
 </html>

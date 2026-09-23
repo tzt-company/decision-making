@@ -366,26 +366,16 @@ function renderPrecheck(rep) {
   animateBars(body);
 }
 
-async function loadRepos() {
-  try {
-    const data = await api("/api/repos", null, 15000);
-    const sel = $("repoSelect");
-    const repos = data.repos || [];
-    sel.innerHTML = repos.length
-      ? repos
-          .map((r) => `<option value="${escapeHtml(r.path)}">${escapeHtml(r.name)} · ${escapeHtml(r.path)}</option>`)
-          .join("")
-      : '<option value="">（未发现其它项目，可用下方路径）</option>';
-  } catch {
-    $("repoSelect").innerHTML = '<option value="">（扫描失败，可用下方路径）</option>';
-  }
-}
-
 function currentRepoPath() {
-  return ($("repoPath").value || "").trim() || $("repoSelect").value || "";
+  return ($("repoPath").value || "").trim();
 }
 
 async function runPrecheck() {
+  const repo = currentRepoPath();
+  if (!repo) {
+    alert("请先填写要检查的 git 仓库路径");
+    return;
+  }
   $("btnPrecheck").disabled = true;
   const t0 = Date.now();
   const tick = setInterval(() => {
@@ -394,7 +384,7 @@ async function runPrecheck() {
   try {
     const res = await api(
       "/api/precheck",
-      { mode: $("precheckMode").value || "auto", repo_path: currentRepoPath() || null },
+      { mode: $("precheckMode").value || "auto", repo_path: repo },
       180000
     );
     renderPrecheck(res);
@@ -499,9 +489,8 @@ function selectScenario(id) {
     renderScenarios();
     renderQuestions(scn);
     $("precheckBody").innerHTML =
-      '<div class="empty">点「提交前自检」，自动读所选项目的 git diff，不用拷贝代码。</div>';
-    $("precheckMeta").textContent = "先选项目";
-    loadRepos();
+      '<div class="empty">在上方填写要检查的 <b>git 仓库路径</b>（不会枚举本机其它项目），再点「提交前自检」。</div>';
+    $("precheckMeta").textContent = "填路径即可";
     return;
   }
 
