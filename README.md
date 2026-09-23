@@ -14,27 +14,37 @@
 
 一次前向同时回答全部类型化问题，并展示校准概率、置信度门控（AUTO / HUMAN）与语言路由理由。
 
-## 运行
+## 快速开始（开源克隆后）
+
+**前置条件：先下载 Laya 模型（约 1.5GB，不进 git）**
 
 ```bash
-# Python 3.10+
+# 1. Python 3.10+
 pip install -r requirements.txt
 
-# 国内网络可先设置镜像（server/smoke 内也有默认值）
-# $env:HF_ENDPOINT='https://hf-mirror.com'
-# $env:HF_HUB_DISABLE_XET='1'
+# 2. 下载权重到 models/hub/（只需一次）
+python -m app.fetch_models
 
-# 启动（默认 http://127.0.0.1:8766）
+# 3. 启动
 python -m app.server
-
-# 命令行预检当前 git 改动（无需粘贴代码）
-python -m app.precheck_cli --mode auto
-
-# 可选：挂到 git pre-commit
-# cp scripts/pre-commit .git/hooks/pre-commit
+# 打开 http://127.0.0.1:8766
 ```
 
-首次启动会下载权重到**项目内** `models/hub/`（英文 + 多语言，约 1.5 GB），CPU 预加载约 1–3 分钟。单次推理在笔记本 CPU 上约 1.5–3 s（预热后）。
+国内网络脚本默认走 `https://hf-mirror.com`；若失败可：
+
+```bash
+set HF_ENDPOINT=https://huggingface.co
+python -m app.fetch_models
+```
+
+命令行预检 / pre-commit 钩子：
+
+```bash
+python -m app.precheck_cli --mode auto --repo /path/to/your/repo
+# 可选：cp scripts/pre-commit .git/hooks/pre-commit
+```
+
+CPU 预热约 1–2 分钟；单次推理约 1.5–3 s。权重在**项目内** `models/hub/`，已在 `.gitignore` 中，不会提交到 GitHub。
 
 ## 技术
 
@@ -46,11 +56,12 @@ python -m app.precheck_cli --mode auto
 
 ```
 app/
-  scenarios.py   # 4 场景样例 + 类型化问题（官方 presets）
+  fetch_models.py  # 一键下载权重（开源用户必跑）
+  scenarios.py   # 场景样例 + 类型化问题（官方 presets）
   engine.py      # 真 Router 封装（CPU）
   server.py      # HTTP API + 静态资源
 models/
-  hub/           # Laya 权重缓存（项目内本地文件，不进 git）
+  hub/           # Laya 权重（本地，不进 git）
 static/
   index.html
   styles.css

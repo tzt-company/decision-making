@@ -43,9 +43,14 @@ class LayaEngine:
                 return self._router
             try:
                 # Offline-first: weights already in cache must never re-download / hang.
-                if HF_CACHE.exists():
-                    os.environ["HF_HUB_OFFLINE"] = "1"
-                    os.environ["HF_DATASETS_OFFLINE"] = "1"
+                if not HF_CACHE.exists() or not any(HF_CACHE.rglob("*.safetensors")):
+                    self._load_error = (
+                        "未找到模型权重。请先执行：python -m app.fetch_models "
+                        f"（目录 {HF_CACHE}）"
+                    )
+                    raise FileNotFoundError(self._load_error)
+                os.environ["HF_HUB_OFFLINE"] = "1"
+                os.environ["HF_DATASETS_OFFLINE"] = "1"
                 # Keep EN + multilingual resident; never pull typed-decisions (incomplete + huge).
                 self._router = Router(max_loaded=2, device="cpu")
                 self._router.preload(["english", "multilingual"])

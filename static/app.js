@@ -537,7 +537,12 @@ async function warmup() {
     await api("/api/warmup", {}, 240000);
     setStatus("ok", "真模型已就绪（CPU）");
   } catch (e) {
-    setStatus("err", `加载失败：${e.message}`);
+    const msg = String(e.message || e);
+    if (msg.includes("fetch_models") || msg.includes("未找到模型")) {
+      setStatus("err", "请先下载模型：python -m app.fetch_models");
+    } else {
+      setStatus("err", `加载失败：${msg}`);
+    }
   }
 }
 
